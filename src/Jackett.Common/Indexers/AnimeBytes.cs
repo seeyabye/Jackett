@@ -22,10 +22,22 @@ namespace Jackett.Common.Indexers
     public class AnimeBytes : BaseCachingWebIndexer
     {
         private string ScrapeUrl => SiteLink + "scrape.php";
+        private string TorrentsUrl => SiteLink + "torrents.php";
         public bool AllowRaws => configData.IncludeRaw.Value;
         public bool PadEpisode => configData.PadEpisode != null && configData.PadEpisode.Value;
         public bool AddSynonyms => configData.AddSynonyms.Value;
         public bool FilterSeasonEpisode => configData.FilterSeasonEpisode.Value;
+        public int AiringEpisode => int.Parse(configData.AiringEpisode.Value);
+
+        public static readonly TorznabCategory TVSeries = new TorznabCategory(90010, "TV Series");
+        public static readonly TorznabCategory TVSeriesAiring = new TorznabCategory(90011, "TV Series (Airing)");
+        public static readonly TorznabCategory TVSeriesAired = new TorznabCategory(90012, "TV Series (Aired)");
+        public static readonly TorznabCategory TVSpecial = new TorznabCategory(90020, "TV Special");
+        public static readonly TorznabCategory OVA = new TorznabCategory(90030, "OVA");
+        public static readonly TorznabCategory ONA = new TorznabCategory(90040, "ONA");
+        public static readonly TorznabCategory DVDSpecial = new TorznabCategory(90050, "DVD Special");
+        public static readonly TorznabCategory BDSpecial = new TorznabCategory(90060, "BD Special");
+        public static readonly TorznabCategory Movie = new TorznabCategory(90070, "Movie");
 
         private new ConfigurationDataAnimeBytes configData
         {
@@ -34,7 +46,7 @@ namespace Jackett.Common.Indexers
         }
 
         public AnimeBytes(IIndexerConfigurationService configService, Utils.Clients.WebClient client, Logger l, IProtectionService ps)
-            : base(id: "animebytes",
+           : base(id: "animebytes",
                    name: "AnimeBytes",
                    description: "Powered by Tentacles",
                    link: "https://animebytes.tv/",
@@ -51,7 +63,7 @@ namespace Jackett.Common.Indexers
                                                  TorznabCatType.AudioOther),
                    logger: l,
                    p: ps,
-                   configData: new ConfigurationDataAnimeBytes("Note: Go to AnimeBytes site and open your account settings. Go to 'Account' tab, move cursor over black part near 'Passkey' and copy its value. Your username is case sensitive."))
+                   configData: new ConfigurationDataAnimeBytes("Note: Go to AnimeBytes site and open your account settings. Go to 'Account' tab, move cursor over black part near 'Passkey' and copy its value. Your username is case sensitive."))            
         {
             Encoding = Encoding.UTF8;
             Language = "en-us";
@@ -74,6 +86,14 @@ namespace Jackett.Common.Indexers
             AddCategoryMapping("printedtype[manhwa]", TorznabCatType.BooksComics, "Manhwa");
             AddCategoryMapping("printedtype[light_novel]", TorznabCatType.BooksComics, "Light Novel");
             AddCategoryMapping("printedtype[artbook]", TorznabCatType.BooksComics, "Artbook");
+
+            AddCategoryMapping("anime[tv_series]", AnimeBytes.TVSeries, "TV Series");
+            AddCategoryMapping("anime[tv_special]", AnimeBytes.TVSpecial, "TV Special");
+            AddCategoryMapping("anime[ova]", AnimeBytes.OVA, "OVA");
+            AddCategoryMapping("anime[ona]", AnimeBytes.ONA, "ONA");
+            AddCategoryMapping("anime[dvd_special]", AnimeBytes.DVDSpecial, "DVD Special");
+            AddCategoryMapping("anime[bd_special]", AnimeBytes.BDSpecial, "BD Special");
+            AddCategoryMapping("anime[movie]", AnimeBytes.Movie, "Movie");
 
         }
         // Prevent filtering
@@ -158,11 +178,14 @@ namespace Jackett.Common.Indexers
                     queryCollection.Add(cat, "1");
                 }
             }
+            if (AiringEpisode >= 0)
+                queryCollection.Add("airing", AiringEpisode.ToString());
 
             queryCollection.Add("username", configData.Username.Value);
             queryCollection.Add("torrent_pass", configData.Passkey.Value);
             queryCollection.Add("type", searchType);
             queryCollection.Add("searchstr", searchTerm);
+            //queryCollection.Add("airing", isAiring.ToString());
             var queryUrl = ScrapeUrl + "?" + queryCollection.GetQueryString();
 
             // Check cache first so we don't query the server for each episode when searching for each episode in a series.
