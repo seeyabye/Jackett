@@ -68,6 +68,9 @@ namespace Jackett.Common.Indexers
             Language = "en-us";
             Type = "private";
 
+            TorznabCaps.LimitsDefault = 1000;
+            TorznabCaps.LimitsMax = 1000;
+
             webclient.EmulateBrowser = false; // Animebytes doesn't like fake user agents (issue #1535)
 
             AddCategoryMapping("anime[tv_series]", TorznabCatType.TVAnime, "TV Series");
