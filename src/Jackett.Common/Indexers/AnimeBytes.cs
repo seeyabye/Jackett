@@ -185,7 +185,6 @@ namespace Jackett.Common.Indexers
             queryCollection.Add("torrent_pass", configData.Passkey.Value);
             queryCollection.Add("type", searchType);
             queryCollection.Add("searchstr", searchTerm);
-            //queryCollection.Add("airing", isAiring.ToString());
             var queryUrl = ScrapeUrl + "?" + queryCollection.GetQueryString();
 
             // Check cache first so we don't query the server for each episode when searching for each episode in a series.
@@ -263,6 +262,7 @@ namespace Jackett.Common.Indexers
 
                             releaseInfo = releaseInfo.Replace("Episode ", "");
                             releaseInfo = releaseInfo.Replace("Season ", "S");
+                            releaseInfo = Regex.Replace(releaseInfo, @"\(\d+-\d+\)", "");
                             releaseInfo = releaseInfo.Trim();
 
                             if (PadEpisode && int.TryParse(releaseInfo, out var test) && releaseInfo.Length == 1)
