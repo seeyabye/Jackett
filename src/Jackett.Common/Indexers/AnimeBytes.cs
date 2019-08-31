@@ -28,15 +28,13 @@ namespace Jackett.Common.Indexers
         public bool FilterSeasonEpisode => configData.FilterSeasonEpisode.Value;
         public int AiringEpisode => int.Parse(configData.AiringEpisode.Value);
 
-        public static readonly TorznabCategory TVSeries = new TorznabCategory(90010, "TV Series");
-        public static readonly TorznabCategory TVSeriesAiring = new TorznabCategory(90011, "TV Series (Airing)");
-        public static readonly TorznabCategory TVSeriesAired = new TorznabCategory(90012, "TV Series (Aired)");
-        public static readonly TorznabCategory TVSpecial = new TorznabCategory(90020, "TV Special");
-        public static readonly TorznabCategory OVA = new TorznabCategory(90030, "OVA");
-        public static readonly TorznabCategory ONA = new TorznabCategory(90040, "ONA");
-        public static readonly TorznabCategory DVDSpecial = new TorznabCategory(90050, "DVD Special");
-        public static readonly TorznabCategory BDSpecial = new TorznabCategory(90060, "BD Special");
-        public static readonly TorznabCategory Movie = new TorznabCategory(90070, "Movie");
+        public static readonly TorznabCategory TVSeries = new TorznabCategory(90010, "Anime/TV Series");
+        public static readonly TorznabCategory TVSpecial = new TorznabCategory(90020, "Anime/TV Special");
+        public static readonly TorznabCategory OVA = new TorznabCategory(90030, "Anime/OVA");
+        public static readonly TorznabCategory ONA = new TorznabCategory(90040, "Anime/ONA");
+        public static readonly TorznabCategory DVDSpecial = new TorznabCategory(90050, "Anime/DVD Special");
+        public static readonly TorznabCategory BDSpecial = new TorznabCategory(90060, "Anime/BD Special");
+        public static readonly TorznabCategory Movie = new TorznabCategory(90070, "Anime/Movie");
 
         private new ConfigurationDataAnimeBytes configData
         {
