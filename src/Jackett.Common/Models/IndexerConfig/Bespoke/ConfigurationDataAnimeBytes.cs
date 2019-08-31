@@ -26,7 +26,7 @@ namespace Jackett.Common.Models.IndexerConfig.Bespoke
             PadEpisode = new BoolItem() { Name = "Pad episode number for Sonarr compatability", Value = false };
             AddSynonyms = new BoolItem() { Name = "Add releases for each synonym title", Value = true };
             FilterSeasonEpisode = new BoolItem() { Name = "Filter results by season/episode", Value = false };
-            AiringEpisode = new SelectItem(airingOptions) { Name = "Show Airing Episodes?", Value = "" };
+            AiringEpisode = new SelectItem(airingOptions) { Name = "Show Airing Episodes?", Value = "-1" };
             Instructions = new DisplayItem(instructionMessageOptional) { Name = "" };
         }
     }
