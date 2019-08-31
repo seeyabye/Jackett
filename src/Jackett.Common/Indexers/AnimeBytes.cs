@@ -90,13 +90,13 @@ namespace Jackett.Common.Indexers
             AddCategoryMapping("printedtype[light_novel]", TorznabCatType.BooksComics, "Light Novel");
             AddCategoryMapping("printedtype[artbook]", TorznabCatType.BooksComics, "Artbook");
 
-            AddCategoryMapping("anime[tv_series]", AnimeBytes.TVSeries, "TV Series");
-            AddCategoryMapping("anime[tv_special]", AnimeBytes.TVSpecial, "TV Special");
-            AddCategoryMapping("anime[ova]", AnimeBytes.OVA, "OVA");
-            AddCategoryMapping("anime[ona]", AnimeBytes.ONA, "ONA");
-            AddCategoryMapping("anime[dvd_special]", AnimeBytes.DVDSpecial, "DVD Special");
-            AddCategoryMapping("anime[bd_special]", AnimeBytes.BDSpecial, "BD Special");
-            AddCategoryMapping("anime[movie]", AnimeBytes.Movie, "Movie");
+            AddCategoryMapping("anime[tv_series]", AnimeBytes.TVSeries, "Anime/TV Series");
+            AddCategoryMapping("anime[tv_special]", AnimeBytes.TVSpecial, "Anime/TV Special");
+            AddCategoryMapping("anime[ova]", AnimeBytes.OVA, "Anime/OVA");
+            AddCategoryMapping("anime[ona]", AnimeBytes.ONA, "Anime/ONA");
+            AddCategoryMapping("anime[dvd_special]", AnimeBytes.DVDSpecial, "Anime/DVD Special");
+            AddCategoryMapping("anime[bd_special]", AnimeBytes.BDSpecial, "Anime/BD Special");
+            AddCategoryMapping("anime[movie]", AnimeBytes.Movie, "Anime/Movie");
 
         }
         // Prevent filtering
@@ -166,6 +166,21 @@ namespace Jackett.Common.Indexers
             return categories.Length == 0 || music.Any(categories.Contains);
         }
 
+        private IEnumerable<ReleaseInfo> FilterCachedQuery(TorznabQuery query, CachedQueryResult cachedResult)
+        {
+            string absoluteEpisode = "";
+            Match absoluteEpisodeMatch = Regex.Match(query.SanitizedSearchTerm, @"\W(\d+)");
+            if (absoluteEpisodeMatch.Success)
+            {
+                // Check if requested episode is in cached result
+                absoluteEpisode = absoluteEpisodeMatch.Groups[1].Value;
+                var newResults = cachedResult.Results.Where(s => s.Title.Contains(absoluteEpisode));
+                return newResults;
+            }
+            else
+                return cachedResult.Results;
+        }
+
         private async Task<IEnumerable<ReleaseInfo>> GetResults(TorznabQuery query, string searchType, string searchTerm)
         {
             // The result list
@@ -198,7 +213,11 @@ namespace Jackett.Common.Indexers
 
                 var cachedResult = cache.Where(i => i.Query == queryUrl).FirstOrDefault();
                 if (cachedResult != null)
-                    return cachedResult.Results.Select(s => (ReleaseInfo)s.Clone()).ToArray();
+                {
+                    var filteredCachedResult = FilterCachedQuery(query, cachedResult);
+                    return filteredCachedResult.Select(s => (ReleaseInfo)s.Clone()).ToArray();
+                }
+                    
             }
 
             // Get the content from the tracker
