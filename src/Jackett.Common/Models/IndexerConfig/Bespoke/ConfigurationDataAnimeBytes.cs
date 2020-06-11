@@ -10,6 +10,7 @@ namespace Jackett.Common.Models.IndexerConfig.Bespoke
         public BoolItem AddSynonyms { get; private set; }
         public BoolItem FilterSeasonEpisode { get; private set; }
         public SelectItem AiringEpisode { get; private set; }
+        public StringItem HardDriveCacheKeepTime { get; private set; }
 
         public ConfigurationDataAnimeBytes(string instructionMessageOptional = null)
             : base()
@@ -26,6 +27,7 @@ namespace Jackett.Common.Models.IndexerConfig.Bespoke
             FilterSeasonEpisode = new BoolItem() { Name = "Filter results by season/episode", Value = false };
             AiringEpisode = new SelectItem(airingOptions) { Name = "Show Airing Episodes?", Value = "-1" };
             Instructions = new DisplayItem(instructionMessageOptional) { Name = "" };
+            HardDriveCacheKeepTime = new StringItem { Name = "Keep Cached files for (ms)", Value = "86400000" }; // Store for one day
         }
     }
 }

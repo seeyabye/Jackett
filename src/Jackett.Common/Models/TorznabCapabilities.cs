@@ -24,6 +24,9 @@ namespace Jackett.Common.Models
 
         public bool MusicSearchAvailable => (SupportedMusicSearchParamsList.Count > 0);
 
+        public bool SupportsTVDBSearch { get; set; }
+
+
         public List<string> SupportedMusicSearchParamsList;
 
         public List<TorznabCategory> Categories { get; private set; }
@@ -37,6 +40,7 @@ namespace Jackett.Common.Models
             SupportsTVRageSearch = false;
             SupportsImdbMovieSearch = false;
             SupportsImdbTVSearch = false;
+            SupportsTVDBSearch = false;
             SupportedMusicSearchParamsList = new List<string>();
         }
 
@@ -47,6 +51,7 @@ namespace Jackett.Common.Models
             SupportsTVRageSearch = false;
             SupportsImdbMovieSearch = false;
             SupportsImdbTVSearch = false;
+            SupportsTVDBSearch = false;
             SupportedMusicSearchParamsList = new List<string>();
             Categories = new List<TorznabCategory>();
             Categories.AddRange(cats);
@@ -62,6 +67,8 @@ namespace Jackett.Common.Models
                     parameters.Add("rid");
                 if (SupportsImdbTVSearch)
                     parameters.Add("imdbid");
+                if (SupportsTVDBSearch)
+                    parameters.Add("tvdbid");
                 return string.Join(",", parameters);
             }
         }
@@ -150,6 +157,7 @@ namespace Jackett.Common.Models
             lhs.TVSearchAvailable = lhs.TVSearchAvailable || rhs.TVSearchAvailable;
             lhs.MovieSearchAvailable = lhs.MovieSearchAvailable || rhs.MovieSearchAvailable;
             lhs.SupportsTVRageSearch = lhs.SupportsTVRageSearch || rhs.SupportsTVRageSearch;
+            lhs.SupportsTVDBSearch = lhs.SupportsTVDBSearch || rhs.SupportsTVDBSearch;
             lhs.SupportsImdbMovieSearch = lhs.SupportsImdbMovieSearch || rhs.SupportsImdbMovieSearch;
             lhs.SupportsImdbTVSearch = lhs.SupportsImdbTVSearch || rhs.SupportsImdbTVSearch;
             lhs.Categories.AddRange(rhs.Categories.Where(x => x.ID < 100000).Except(lhs.Categories)); // exclude indexer specific categories (>= 100000)
