@@ -12,6 +12,7 @@ namespace Jackett.Common.Models.IndexerConfig.Bespoke
         public SelectItem AiringEpisode { get; private set; }
         public StringItem HardDriveCacheKeepTime { get; private set; }
 
+
         public ConfigurationDataAnimeBytes(string instructionMessageOptional = null)
             : base()
         {

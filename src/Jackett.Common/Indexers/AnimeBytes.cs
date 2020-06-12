@@ -191,6 +191,7 @@ namespace Jackett.Common.Indexers
             {
                 // Check if requested episode is in cached result
                 absoluteEpisode = absoluteEpisodeMatch.Groups[1].Value;
+
                 var newResults = cachedResult.Results.Where(s => s.Title.Contains(absoluteEpisode)).ToList();
 
                 // If it's empty, it's not in cached result. Just return everything
@@ -666,7 +667,6 @@ namespace Jackett.Common.Indexers
                     var filteredCachedResult = FilterCachedQuery(query, cachedResult);
                     return filteredCachedResult.Select(s => (ReleaseInfo)s.Clone()).ToArray();
                 }
-
             }*/
 
             // Get the content from the tracker
