@@ -34,7 +34,7 @@ namespace Jackett.Common.Indexers
         public bool AddSynonyms => configData.AddSynonyms.Value;
         public bool FilterSeasonEpisode => configData.FilterSeasonEpisode.Value;
         public int AiringEpisode => int.Parse(configData.AiringEpisode.Value);
-        private bool DevMode => true;
+        private bool DevMode => false;
 
         public static readonly TorznabCategory TVSeries = new TorznabCategory(90010, "Anime/TV Series");
         public static readonly TorznabCategory TVSpecial = new TorznabCategory(90020, "Anime/TV Special");
@@ -50,10 +50,10 @@ namespace Jackett.Common.Indexers
         public static readonly string TheXEMList = "http://thexem.de/map/allNames?origin=tvdb&seasonNumbers=1&defaultNames=1";
         public static readonly string TheXEMSingle = "http://thexem.de/map/all?";
 
-        private static readonly Regex SpecialCharacter = new Regex(@"[`'.]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex NonWord = new Regex(@"[\W]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex DoubleSpace = new Regex(@"[\s]{2,}", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex YearDigits = new Regex(@"\s?\(?\d{4}\)?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex _SpecialCharacter = new Regex(@"[`'.]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex _NonWord = new Regex(@"[\W]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex _DoubleSpace = new Regex(@"[\s]{2,}", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex _YearDigits = new Regex(@"\s?\(?\d{4}\)?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static string Directory => Path.Combine(Path.GetTempPath(), Assembly.GetExecutingAssembly().GetName().Name.ToLower(), MethodBase.GetCurrentMethod().DeclaringType?.Name.ToLower());
 
         private new ConfigurationDataAnimeBytes configData
@@ -143,8 +143,8 @@ namespace Jackett.Common.Indexers
         {
             // Tracer does not support searching with episode number so strip it if we have one
             term = Regex.Replace(term, @"\W(\dx)?\d?\d$", string.Empty);
-            term = YearDigits.Replace(term, "");
-            //term = Regex.Replace(term, @"\W(S\d\d?E)?\d?\d$", string.Empty);
+            term = Regex.Replace(term, @"\W(S\d\d?E)?\d?\d$", string.Empty);
+            term = _YearDigits.Replace(term, "");
             return term;
         }
 
@@ -155,13 +155,13 @@ namespace Jackett.Common.Indexers
 
             if (ContainsMusicCategories(query.Categories))
             {
-                foreach (var result in await GetResults(query, "music", query.SanitizedSearchTerm))
+                foreach (var result in await GetResultsAsync(query, "music", query.SanitizedSearchTerm))
                 {
                     releases.Add(result);
                 }
             }
 
-            foreach (var result in await GetResults(query, "anime", StripEpisodeNumber(query.SanitizedSearchTerm)))
+            foreach (var result in await GetResultsAsync(query, "anime", StripEpisodeNumber(query.SanitizedSearchTerm)))
             {
                 releases.Add(result);
             }
@@ -206,14 +206,13 @@ namespace Jackett.Common.Indexers
             // Create Directory if not exist
             System.IO.Directory.CreateDirectory(Directory);
 
-            // Clean Storage Provider Directory from outdated cached queries
-            CleanCacheStorage();
-
             // File Name
-            Dictionary<string, string> dbFilesUrl = new Dictionary<string, string>();
-            dbFilesUrl.Add("anidb", AnimeBytes.AniDBList);
-            dbFilesUrl.Add("scudlee", AnimeBytes.ScudLeeAnimeList);
-            dbFilesUrl.Add("thexem", AnimeBytes.TheXEMList);
+            Dictionary<string, string> dbFilesUrl = new Dictionary<string, string>
+            {
+                { "anidb", AnimeBytes.AniDBList },
+                { "scudlee", AnimeBytes.ScudLeeAnimeList },
+                { "thexem", AnimeBytes.TheXEMList }
+            };
 
             Dictionary<string, string> dbFilePaths = new Dictionary<string, string>();
             foreach (var file in dbFilesUrl)
@@ -232,7 +231,7 @@ namespace Jackett.Common.Indexers
                 
                 if (!File.Exists(filePath))
                 {
-                    output("Downloading " + fileName);
+                    Output("Downloading " + fileName);
                     try
                     {
                         System.Net.WebClient wClient = new WebClient();
@@ -258,7 +257,7 @@ namespace Jackett.Common.Indexers
                     }
                     catch (Exception e)
                     {
-                        output("Error downloading " + fileName + " " + e.Message, "error");
+                        Output("Error downloading " + fileName + " " + e.Message, "error");
                         return null;
                     }
                 }
@@ -276,7 +275,10 @@ namespace Jackett.Common.Indexers
 
         private async Task<AnimeReleaseInfo> ParseAnimeTitleAsync(string titleName, Dictionary<string, string> dbFilePaths)
         {
-            AnimeReleaseInfo releaseInfo = new AnimeReleaseInfo();
+            AnimeReleaseInfo releaseInfo = new AnimeReleaseInfo
+            {
+                SceneSeason = 1 // We assume it's Season 1 at first
+            };
 
             try
             {
@@ -295,25 +297,25 @@ namespace Jackett.Common.Indexers
                 var theXEM = File.ReadAllText(dbFilePaths["thexem"]);
 
                 // First, Obtain the TVDbId
-                var xemAnimeList = JsonConvert.DeserializeObject<XEMRoot>(theXEM).data;
+                var xemAnimeList = JsonConvert.DeserializeObject<XEMRoot>(theXEM).Data;
 
-                var releaseInfoList = xemAnimeList.Where(s => s.Value.defaultName.Equals(titleName) || s.Value.alternativeNames.ContainsKey(titleName))
+                var releaseInfoList = xemAnimeList.Where(s => s.Value.DefaultName.Equals(titleName) || s.Value.AlternativeNames.ContainsKey(titleName))
                     .Select(s => ConvertToAnimeReleaseInfo(titleName, s, releaseInfo)).ToList();
 
+                // We can't find it, we'll need to try harder
                 if (!releaseInfoList.Any())
-                {
-                    // We can't find it, we'll need to try harder
+                {   
                     // First map those without alternative names to have at least one alternativenames
-                    var filterAnimeList = xemAnimeList.Where(s => !s.Value.alternativeNames.ToList().Any());
+                    var filterAnimeList = xemAnimeList.Where(s => !s.Value.AlternativeNames.ToList().Any());
                     foreach (var anime in filterAnimeList)
-                        anime.Value.alternativeNames.Add(anime.Value.defaultName, 1);
+                        anime.Value.AlternativeNames.Add(anime.Value.DefaultName, 1);
 
 
                     // Rank the closest match by Levenshtein distance
                     var sortedReleaseInfoList = xemAnimeList.Select(s => new
                     {
                         TVDBID = s.Key,
-                        EditDistance = s.Value.alternativeNames.Select(i => new
+                        EditDistance = s.Value.AlternativeNames.Select(i => new
                         {
                             L = Levenshtein.Distance(titleName, i.Key),
                             Name = i.Key,
@@ -327,155 +329,54 @@ namespace Jackett.Common.Indexers
                         releaseInfo.TVDBId = first.TVDBID;
                         releaseInfo.SearchTitle = first.EditDistance.Name;
                         releaseInfo.SceneSeason = first.EditDistance.Season;
+                        //releaseInfo.BaseTitle = xemAnimeList.First(s => s.Key.Equals(first.TVDBID)).Value.defaultName;
                     }
                 }
 
-                // We need to check if SceneSeason and Season are the same
-                if (releaseInfo.SceneSeason != null && releaseInfo.TVDBId != null)
-                {
-                    var anyAniDBIDList = scudLee.Descendants("anime").Where(s => s.Attribute("tvdbid").Value.Equals(releaseInfo.TVDBId.ToString()));
-
-                    // Filter off specials if we are looking for TV Series
-                    if (releaseInfo.SceneSeason > 0)
-                        anyAniDBIDList = anyAniDBIDList.Where(s => !s.Attribute("defaulttvdbseason").Value.Equals("0"));
-
-                    if (anyAniDBIDList.Any())
-                    {
-                        // Find best match for narrowing down AniDBID
-                        /*var sortedReleaseInfoList = anyAniDBIDList.Select(s => new
-                        {
-                            ANIDBID = s.Attribute("anidbid").Value,
-                            Name = s.Element("name").Value,
-                            EditDistance = Levenshtein.Distance(titleName, s.Element("name").Value)
-                        }).OrderBy(s => s.EditDistance).ToList();*/
-
-                        // Use season to match
-                        var currentAniDB = anyAniDBIDList.ToList()[(releaseInfo.SceneSeason ?? 1) - 1];
-                        var aaid = int.Parse(currentAniDB.Attribute("anidbid").Value);
-
-                        var queryCollection = new NameValueCollection();
-                        //var currentAniDB = sortedReleaseInfoList.First();
-
-                        releaseInfo.AniDBID = aaid;
-                        queryCollection.Add("id", aaid.ToString());
-                        queryCollection.Add("origin", "anidb");
-                        queryCollection.Add("destination", "tvdb");
-                        //queryCollection.Add("episode", releaseInfo.Episode?.ToString() ?? "1");
-                        //queryCollection.Add("season", releaseInfo.SceneSeason.ToString());
-                        
-                        var queryUrl = TheXEMSingle + queryCollection.GetQueryString();
-
-                        // Query TheXEM for TVDB's Season
-                        var response = await RequestStringWithCookiesAndRetry(queryUrl);
-                        if (!response.Content.StartsWith("{")) // not JSON => error
-                            throw new ExceptionWithConfigData("unexcepted response (not JSON)", configData);
-                        dynamic json = JsonConvert.DeserializeObject<dynamic>(response.Content);
-
-                        //releaseInfo.Season = (int) json["data"]["tvdb"]["season"];
-                        var mappings = json["data"];
-                        foreach(var maps in mappings)
-                        {
-                            if (maps["anidb"]["season"] != releaseInfo.SceneSeason || maps["tvdb"]["episode"] != releaseInfo.Episode)
-                                continue;
-
-                            releaseInfo.Season = maps["tvdb"]["season"];
-                            break;
-                        }
-                    }
-                }
-
-                // Check if ScudLee has what we're looking for
-                //var scudSearch = scudLee.Descendants("anime").Where(s => NormalizeToSonarrNames(s.Element("name").Value).Equals(titleName)).ToList();
-
-                /*if (!scudSearch.IsEmpty())
-                {
-                    var firstScud = scudSearch.First();
-                    releaseInfo.AniDBID = int.Parse(firstScud.Attribute("anidbid").Value);
-                    releaseInfo.TVDBId = int.Parse(firstScud.Attribute("tvdbid").Value);
-
-                    if (int.TryParse(firstScud.Attribute("defaulttvdbseason").Value, out int seasonInt))
-                    {
-                        releaseInfo.Season = seasonInt;
-                    }
-
-                    var aniDBJPName = aniDB.Descendants("anime")
-                        .Where(s => s.Attribute("aid").Value.Equals(releaseInfo.AniDBID.ToString()))
-                        .Select(s => new
-                        {
-                            jpTitle = s.Elements("title").Where(i => i.Attribute(XNamespace.Xml + "lang").Value.Equals("ja") && i.Attribute("type").Value.Equals("official")).First()
-                        }).First();
-
-                    releaseInfo.SearchTitle = RemoveYear(aniDBJPName.jpTitle.Value);
-
+                // If TVDBId is not found, we can't do anything, just return empty releaseinfo
+                if (releaseInfo.TVDBId == null)
                     return releaseInfo;
-                }
-                else
+
+                // We need to check if SceneSeason and Season are the same                
+                var anyAniDBIDList = scudLee.Descendants("anime").Where(s => s.Attribute("tvdbid").Value.Equals(releaseInfo.TVDBId.ToString()));
+
+                // Filter off specials if we are looking for TV Series
+                if (releaseInfo.SceneSeason > 0)
+                    anyAniDBIDList = anyAniDBIDList.Where(s => !s.Attribute("defaulttvdbseason").Value.Equals("0"));
+
+                if (anyAniDBIDList.Any())
                 {
-                    // Let's try a little harder
-                    var filterScudLee = scudLee.Descendants("anime")
-                        .Where(s => Regex.Match(s.Attribute("tvdbid").Value, @"\d+").Success) // We don't do OVAs
-                        .Where(s => Regex.Match(NormalizeToSonarrNames(s.Element("name").Value), titleName, RegexOptions.IgnoreCase).Success) // Partial matching
-                        .Select(s => new
+                    // Use season to match
+                    var currentAniDB = anyAniDBIDList.ToList()[(releaseInfo.SceneSeason ?? 1) - 1];
+                    var aaid = int.Parse(currentAniDB.Attribute("anidbid").Value);
+
+                    var queryCollection = new NameValueCollection();
+                    //var currentAniDB = sortedReleaseInfoList.First();
+
+                    releaseInfo.AniDBID = aaid;
+                    queryCollection.Add("id", aaid.ToString());
+                    queryCollection.Add("origin", "anidb");
+                    queryCollection.Add("destination", "tvdb");
+                        
+                    var queryUrl = TheXEMSingle + queryCollection.GetQueryString();
+
+                    // Query TheXEM for TVDB's Season
+                    var response = await RequestStringWithCookiesAndRetry(queryUrl);
+                    if (!response.Content.StartsWith("{")) // not JSON => error
+                        throw new ExceptionWithConfigData("unexcepted response (not JSON)", configData);
+                    dynamic json = JsonConvert.DeserializeObject<dynamic>(response.Content);
+
+                    //releaseInfo.Season = (int) json["data"]["tvdb"]["season"];
+                    var mappings = json["data"];
+                    foreach(var maps in mappings)
                     {
-                        AniDBID = s.Attribute("anidbid").Value,
-                        TVDBID = s.Attribute("tvdbid").Value,
-                        EditDistance = Levenshtein.Distance(titleName, NormalizeToSonarrNames(s.Element("name").Value)),
-                        Name = s.Element("name").Value,
-                        Season = s.Attribute("defaulttvdbseason").Value
-                    }).OrderBy(s => s.EditDistance).ToList();
-                    
-                    if (!filterScudLee.IsEmpty())
-                    {
-                        try
-                        {
-                            var first = filterScudLee.First();
-                            releaseInfo.AniDBID = int.Parse(first.AniDBID);
-                            releaseInfo.TVDBId = int.Parse(first.TVDBID);
+                        if (maps["anidb"]["season"] != releaseInfo.SceneSeason || maps["tvdb"]["episode"] != releaseInfo.Episode)
+                            continue;
 
-                            if (int.TryParse(first.Season, out int seasonInt))
-                                releaseInfo.Season = seasonInt;
-                            else if (first.Season == "a")
-                                releaseInfo.Season = 1;
-
-                            var aniDBJPName = aniDB.Descendants("anime")
-                                .Where(s => s.Attribute("aid").Value.Equals(releaseInfo.AniDBID.ToString()))
-                                .Select(s => new
-                                {
-                                    jpTitle = s.Elements("title").Where(i => i.Attribute(XNamespace.Xml + "lang").Value.Equals("ja") && i.Attribute("type").Value.Equals("official")).First()
-                                }).First();
-
-                            releaseInfo.SearchTitle = RemoveYear(aniDBJPName.jpTitle.Value);
-
-                            return releaseInfo;
-                        }
-                        catch (Exception)
-                        {
-                            // We will skip this
-                        }
+                        releaseInfo.Season = maps["tvdb"]["season"];
+                        break;
                     }
-                }*/
-
-                // Map it to exact AniDBID if it's missing
-                /*if (releaseInfo.AniDBID == null)
-                {
-                    var scudAnime = scudLee.Descendants("anime").Where(s => s.Attribute("tvdbid").Value.Equals(releaseInfo.TVDBId.ToString())
-                    && s.Attribute("defaulttvdbseason").Value.Equals(releaseInfo.Season.ToString())).ToList();
-
-                    if (scudAnime.Any())
-                    {
-                        var candidate = scudAnime.First();
-                        foreach (var s in scudAnime)
-                        {
-                            if (s.Attribute("episodeoffset") != null && int.Parse(s.Attribute("episodeoffset").Value) <= releaseInfo.Episode)
-                            {
-                                candidate = s;
-                                break;
-                            }
-                        }
-                        releaseInfo.AniDBID = int.Parse(candidate.Attribute("anidbid").Value);
-                    }
-                }*/
-                
+                }                
 
                 /*if (releaseInfo.SearchTitle == null)
                     releaseInfo.SearchTitle = releaseInfo.Title;*/
@@ -492,7 +393,7 @@ namespace Jackett.Common.Indexers
             }
             catch (Exception)
             {
-                output("Caught Exception");
+                Output("Caught Exception");
                 // Whatever happens, just skip using this method
             }            
 
@@ -502,26 +403,26 @@ namespace Jackett.Common.Indexers
         public static string NormalizeToSonarrNames(string cleanTitle)
         {
             cleanTitle = cleanTitle.Replace("&", "and");
-            cleanTitle = SpecialCharacter.Replace(cleanTitle, "");
-            cleanTitle = NonWord.Replace(cleanTitle, " ");
-            cleanTitle = DoubleSpace.Replace(cleanTitle, " ");
+            cleanTitle = _SpecialCharacter.Replace(cleanTitle, "");
+            cleanTitle = _NonWord.Replace(cleanTitle, " ");
+            cleanTitle = _DoubleSpace.Replace(cleanTitle, " ");
             return cleanTitle;
         }
 
         public static string RemoveYear(string cleanTitle)
         {
-            cleanTitle = YearDigits.Replace(cleanTitle, "");
+            cleanTitle = _YearDigits.Replace(cleanTitle, "");
             return cleanTitle;
         }
 
         private AnimeReleaseInfo ConvertToAnimeReleaseInfo(string titleName, KeyValuePair<int, XEMAnime> anime, AnimeReleaseInfo animeReleaseInfo)
         {
             animeReleaseInfo.TVDBId = anime.Key;
-            animeReleaseInfo.BaseTitle = anime.Value.defaultName;
+            animeReleaseInfo.BaseTitle = anime.Value.DefaultName;
             
-            if (anime.Value.alternativeNames.ContainsKey(titleName))
+            if (anime.Value.AlternativeNames.ContainsKey(titleName))
             {
-                animeReleaseInfo.Season = anime.Value.alternativeNames[titleName];
+                animeReleaseInfo.Season = anime.Value.AlternativeNames[titleName];
                 animeReleaseInfo.Title = titleName;
             }
 
@@ -534,33 +435,33 @@ namespace Jackett.Common.Indexers
             if (force)
             {
                 // Deleting Provider Storage folder and all files recursively
-                output("\nDeleting Anime List Cache File...");
+                Output("\nDeleting Anime List Cache File...");
 
                 // Check if directory exist
                 if (System.IO.Directory.Exists(Directory))
                 {
                     // Delete storage directory of provider
                     System.IO.Directory.Delete(Directory, true);
-                    output("-> Anime List Cache deleted successfully.");
+                    Output("-> Anime List Cache deleted successfully.");
                 }
                 else
                 {
                     // No directory, so nothing to do
-                    output("-> No Anime List Cache folder found for this provider !");
+                    Output("-> No Anime List Cache folder found for this provider !");
                 }
             }
             else
             {
                 var i = 0;
                 // Check if there is file older than ... and delete them
-                output("\nCleaning Anime List Cache folder... in progress.");
+                Output("\nCleaning Anime List Cache folder... in progress.");
                 System.IO.Directory.GetFiles(Directory)
                 .Select(f => new FileInfo(f))
                 .Where(f => f.LastAccessTime < DateTime.Now.AddMilliseconds(-Convert.ToInt32(configData.HardDriveCacheKeepTime.Value)))
                 .ToList()
                 .ForEach(f =>
                 {
-                    output("Deleting cached file << " + f.Name + " >> ... done.");
+                    Output("Deleting cached file << " + f.Name + " >> ... done.");
                     f.Delete();
                     i++;
                 });
@@ -568,11 +469,11 @@ namespace Jackett.Common.Indexers
                 // Inform on what was cleaned during process
                 if (i > 0)
                 {
-                    output("-> Deleted " + i + " cached files during cleaning.");
+                    Output("-> Deleted " + i + " cached files during cleaning.");
                 }
                 else
                 {
-                    output("-> Nothing deleted during cleaning.");
+                    Output("-> Nothing deleted during cleaning.");
                 }
             }
         }
@@ -582,7 +483,7 @@ namespace Jackett.Common.Indexers
         /// </summary>
         /// <param name="message">Message to output</param>
         /// <param name="level">Level for Logger</param>
-        private void output(string message, string level = "debug")
+        private void Output(string message, string level = "debug")
         {
             // Check if we are in dev mode
             if (DevMode)
@@ -616,7 +517,7 @@ namespace Jackett.Common.Indexers
             }
         }
 
-        private async Task<IEnumerable<ReleaseInfo>> GetResults(TorznabQuery query, string searchType, string searchTerm)
+        private async Task<IEnumerable<ReleaseInfo>> GetResultsAsync(TorznabQuery query, string searchType, string searchTerm)
         {
             // The result list
             var releases = new List<ReleaseInfo>();
@@ -638,8 +539,6 @@ namespace Jackett.Common.Indexers
             if (searchType == "anime")
             {
                 animeReleaseInfo = await GetDBInfoAsync(query.SanitizedSearchTerm);
-                //searchTerm = animeReleaseInfo.BaseTitle.IsNullOrEmptyOrWhitespace() || animeReleaseInfo.AniDBID == null ? searchTerm : animeReleaseInfo.BaseTitle;
-                //searchTerm = animeReleaseInfo.SearchTitle.IsNullOrEmptyOrWhitespace() ? searchTerm : animeReleaseInfo.SearchTitle;
                 searchTerm = string.IsNullOrWhiteSpace(animeReleaseInfo.SearchTitle) ? searchTerm : animeReleaseInfo.SearchTitle;
             }                
 
@@ -655,7 +554,7 @@ namespace Jackett.Common.Indexers
             //anisearchPage = RequestStringWithCookiesAndRetry()
 
             // Check cache first so we don't query the server for each episode when searching for each episode in a series.
-            /*lock (cache)
+            lock (cache)
             {
                 // Remove old cache items
                 CleanCache();
@@ -666,8 +565,7 @@ namespace Jackett.Common.Indexers
                     var filteredCachedResult = FilterCachedQuery(query, cachedResult);
                     return filteredCachedResult.Select(s => (ReleaseInfo)s.Clone()).ToArray();
                 }
-
-            }*/
+            }
 
             // Get the content from the tracker
             var response = await RequestStringWithCookiesAndRetry(queryUrl);
@@ -719,10 +617,8 @@ namespace Jackett.Common.Indexers
                             mainTitle = SeriesName;
 
                         // Override main title if base title exists.
-                        /*if (!animeReleaseInfo.BaseTitle.IsNullOrEmptyOrWhitespace())
-                        {
+                        if (!string.IsNullOrWhiteSpace(animeReleaseInfo.BaseTitle))
                             mainTitle = animeReleaseInfo.BaseTitle;
-                        }*/
 
                         synonyms.Add(mainTitle);
                         if (AddSynonyms)
@@ -931,24 +827,24 @@ namespace Jackett.Common.Indexers
         public class XEMRoot
         {
             [JsonProperty("result")]
-            public string result { get; set; }
+            public string Result { get; set; }
 
             [JsonProperty("data")]
-            public IDictionary<int, XEMAnime> data { get; set; }
+            public IDictionary<int, XEMAnime> Data { get; set; }
 
             [JsonProperty("message")]
-            public string message { get; set; }
+            public string Message { get; set; }
         }
 
         [JsonConverter(typeof(XEMConvert))]
         public class XEMAnime
         {
-            public string defaultName { get; set; }
-            public Dictionary<string, int> alternativeNames { get; set; }
+            public string DefaultName { get; set; }
+            public Dictionary<string, int> AlternativeNames { get; set; }
 
             public XEMAnime()
             {
-                alternativeNames = new Dictionary<string, int>();
+                AlternativeNames = new Dictionary<string, int>();
             }
         }
 
@@ -963,24 +859,26 @@ namespace Jackett.Common.Indexers
             {
                 JArray ja = new JArray();
                 XEMAnime anime = (XEMAnime) value;
-                ja.Add(anime.defaultName);
-                ja.Add(anime.alternativeNames);
+                ja.Add(anime.DefaultName);
+                ja.Add(anime.AlternativeNames);
                 ja.WriteTo(writer);
             }
 
             public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
             {
                 JArray ja = JArray.Load(reader);
-                XEMAnime anime = new XEMAnime();
-                anime.defaultName = (string) ja[0];
-                
+                XEMAnime anime = new XEMAnime
+                {
+                    DefaultName = (string)ja[0]
+                };
+
                 for (var i = 1; i < ja.Count; i++)
                 {
                     foreach(var property in ja[i].ToObject<JObject>().Properties())
                     {
                         try
                         {
-                            anime.alternativeNames.Add((string)property.Name, (int)property.Value);
+                            anime.AlternativeNames.Add((string)property.Name, (int)property.Value);
                         } catch (ArgumentException)
                         {
                             // Duplicate Key Found, Skip it.
