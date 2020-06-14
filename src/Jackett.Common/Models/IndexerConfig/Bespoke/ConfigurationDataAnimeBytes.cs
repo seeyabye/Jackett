@@ -11,7 +11,6 @@ namespace Jackett.Common.Models.IndexerConfig.Bespoke
         public BoolItem FilterSeasonEpisode { get; private set; }
         public SelectItem AiringEpisode { get; private set; }
         public StringItem HardDriveCacheKeepTime { get; private set; }
-
         public ConfigurationDataAnimeBytes(string instructionMessageOptional = null)
             : base()
         {

@@ -232,6 +232,7 @@ namespace Jackett.Common.Indexers
                 if (!File.Exists(filePath))
                 {
                     Output("Downloading " + fileName);
+
                     try
                     {
                         System.Net.WebClient wClient = new WebClient();
@@ -309,7 +310,6 @@ namespace Jackett.Common.Indexers
                     var filterAnimeList = xemAnimeList.Where(s => !s.Value.AlternativeNames.ToList().Any());
                     foreach (var anime in filterAnimeList)
                         anime.Value.AlternativeNames.Add(anime.Value.DefaultName, 1);
-
 
                     // Rank the closest match by Levenshtein distance
                     var sortedReleaseInfoList = xemAnimeList.Select(s => new
