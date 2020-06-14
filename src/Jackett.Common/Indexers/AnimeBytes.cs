@@ -50,7 +50,7 @@ namespace Jackett.Common.Indexers
         public static readonly string TheXEMList = "http://thexem.de/map/allNames?origin=tvdb&seasonNumbers=1&defaultNames=1";
         public static readonly string TheXEMSingle = "http://thexem.de/map/all?";
 
-        private static readonly Regex _SpecialCharacter = new Regex(@"[`'.]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex _SpecialCharacter = new Regex(@"[`'.\[\]]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex _NonWord = new Regex(@"[\W]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex _DoubleSpace = new Regex(@"[\s]{2,}", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex _YearDigits = new Regex(@"\s?\(?\d{4}\)?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -389,7 +389,7 @@ namespace Jackett.Common.Indexers
                                     jpTitle = s.Elements("title").Where(i => i.Attribute(XNamespace.Xml + "lang").Value.Equals("ja") && i.Attribute("type").Value.Equals("official")).First()
                                 }).First();
 
-                releaseInfo.SearchTitle = RemoveYear(aniDBJPName.jpTitle.Value);
+                releaseInfo.SearchTitle = SanitizeNames(aniDBJPName.jpTitle.Value);
             }
             catch (Exception)
             {
@@ -409,9 +409,10 @@ namespace Jackett.Common.Indexers
             return cleanTitle;
         }
 
-        public static string RemoveYear(string cleanTitle)
+        public static string SanitizeNames(string cleanTitle)
         {
             cleanTitle = _YearDigits.Replace(cleanTitle, "");
+            cleanTitle = _SpecialCharacter.Replace(cleanTitle, "");
             return cleanTitle;
         }
 
@@ -422,7 +423,7 @@ namespace Jackett.Common.Indexers
             
             if (anime.Value.AlternativeNames.ContainsKey(titleName))
             {
-                animeReleaseInfo.Season = anime.Value.AlternativeNames[titleName];
+                animeReleaseInfo.SceneSeason = anime.Value.AlternativeNames[titleName];
                 animeReleaseInfo.Title = titleName;
             }
 
