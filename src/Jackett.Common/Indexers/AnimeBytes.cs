@@ -635,7 +635,7 @@ namespace Jackett.Common.Indexers
 
                         foreach (JObject torrent in group["Torrents"])
                         {
-                            var releaseInfo = "";
+                            var releaseInfo = "S01";
                             if (animeReleaseInfo.Season != null)
                                 releaseInfo = string.Format("S{0:00}", animeReleaseInfo.Season);                
                             
